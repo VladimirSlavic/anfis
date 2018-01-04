@@ -33,6 +33,7 @@ def forward_pass_function(X, f, bias):
 def quadratic_loss(y, o_k):
     N = y.shape[0]
     loss = (1 / N) * (y - o_k) ** 2
+    loss = np.sum(loss)
     gradient = - (2/N) * (y - o_k)
 
     return loss, gradient
