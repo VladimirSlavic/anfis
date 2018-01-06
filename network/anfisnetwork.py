@@ -1,5 +1,6 @@
 import numpy as np
 from functions import funcs
+from functions.funcs import sigmoid
 from network.network_functions import *
 
 
@@ -14,24 +15,36 @@ class Anfis:
         self.rule_function = kwargs.pop('rule_function', 'lab_func')
         # implementiraj razliciti tip funkcija za koristit
         self.batch_size = 20
-        self.params['rules'] = np.zeros(shape=(num_rules, input_dims))
 
-        self.params['a'] = np.array([[1, 3],
-                                     [2, 2]])
-        self.params['b'] = np.array([[2, 1],
-                                     [3, 1]])
-        self.params['f'] = np.array([[1, 1],
-                                     [1, 2]])
-        self.params['r'] = np.array([0, 0])
+        # self.params['a'] = np.array([[4, 1],
+        #                              [2, 3]])
+        # self.params['b'] = np.array([[2, 1],
+        #                              [2, 3]])
+        # self.params['f'] = np.array([[1, 1],
+        #                              [2, 3]])
+        # self.params['r'] = np.zeros(shape=num_rules)
 
-        # self.params['a'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
-        # self.params['b'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
-        # self.params['f'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
-        # self.params['r'] = np.zeros(shape=(num_rules))
+        self.params['a'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
+        self.params['b'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
+        self.params['f'] = np.random.normal(scale=weight_dev, size=(input_dims, num_rules))
+        self.params['r'] = np.zeros(shape=num_rules)
 
         if not hasattr(funcs, self.rule_function):
             raise ValueError('Invalid rule function')
         self.rule_function = getattr(funcs, self.rule_function)
+
+    def sigmoid(x):
+        """
+        A numerically stable version of the logistic sigmoid function.
+        """
+        pos_mask = (x >= 0)
+        neg_mask = (x < 0)
+        z = np.zeros_like(x)
+        z[pos_mask] = np.exp(-x[pos_mask])
+        z[neg_mask] = np.exp(x[neg_mask])
+        top = np.ones_like(x)
+        top[neg_mask] = z[neg_mask]
+        return top / (1 + z)
 
     def loss(self, X, y=None):
 
@@ -51,28 +64,39 @@ class Anfis:
         y_less_a = np.zeros(shape=(N, self.num_rules))
 
         # forward pass calculation
+
+        np.seterr(all='raise')
         for i in range(N):
-            x_less_a[i] = X[i, 0] - self.params['a'][0]
-            s1 = np.exp(self.params['b'][0] * (X[i, 0] - self.params['a'][0]))
-            mu_a[i] = 1 / (1 + s1)
-            y_less_a[i] = X[i, 1] - self.params['a'][1]
-            s2 = np.exp(self.params['b'][1] * (X[i, 1] - self.params['a'][1]))
-            mu_b[i] = 1 / (1 + s2)
+            entry = X[i, 0] - self.params['a'][0]
+            x_less_a[i] = entry
+            sig_calc = sigmoid(entry)
+            mu_a[i] = sig_calc
+
+            entry = X[i, 1] - self.params['a'][1]
+            y_less_a[i] = entry
+            sig_calc = sigmoid(entry)
+            mu_b[i] = sig_calc
+            # x_less_a[i] = X[i, 0] - self.params['a'][0]
+            # s1 = np.exp(self.params['b'][0] * (X[i, 0] - self.params['a'][0]))
+            # mu_a[i] = 1 / (1 + s1)
+            # y_less_a[i] = X[i, 1] - self.params['a'][1]
+            # s2 = np.exp(self.params['b'][1] * (X[i, 1] - self.params['a'][1]))
+            # mu_b[i] = 1 / (1 + s2)
             # s1 = np.vstack((s1, s2))
             W[i] = mu_a[i] * mu_b[i]  # s1 * s2 #np.sum(s1, axis=0)
 
         # sad je W = shape(N, m)
 
         row_sum = np.sum(W, axis=1, keepdims=True)
-        row_sum[abs(row_sum - 1e-6) < 1e-6] = 1e-6
+        row_sum[abs(row_sum - 1e-6) <= 1e-6] = 1e-6
         W_average = W / row_sum
 
         r_crt = + self.params['r'].reshape(self.num_rules, -1)
-        print(X.shape, self.params['f'].shape)
         f = X.dot(self.params['f']) + self.params['r']  # NxM
         # tezine puta f pa suma po njima da se dobije rezultat
-        z = W_average.dot(f.T)#tu ne NxN
-        output = np.sum(z, axis=0)  # ovo su sada output (N,)
+        #z = W_average.dot(f.T)  # tu ne NxN
+        z = W_average * f
+        output = np.sum(z, axis=1)  # ovo su sada output (N,)
 
         if mode == 'test':
             return output
@@ -86,17 +110,15 @@ class Anfis:
         x_reshaped = X[:, 0].reshape(N, 1)
         y_reshaped = X[:, 1].reshape(N, 1)
 
-        w_sum_squared = np.sum(W, axis=1)
+        w_sum_squared = np.sum(W, axis=1)**2
         dz = upstream_gradient_reshaped.dot(W_average)
-        dp = upstream_gradient_reshaped.dot(x_reshaped * W_average)#(x_reshaped.dot(upstream_gradient_reshaped)).dot(W_average)
+        dp = upstream_gradient_reshaped.dot(
+            x_reshaped * W_average)  # (x_reshaped.dot(upstream_gradient_reshaped)).dot(W_average)
         dq = upstream_gradient_reshaped.dot(y_reshaped * W_average)
-        dr = upstream_gradient_reshaped.dot(W_average).reshape(self.num_rules,)
-        # dz = upstream_gradient_reshaped.dot(W_average)
-        # dp = upstream_gradient_reshaped.T * W_average * X[:, 0]
-        # dq = upstream_gradient_reshaped.T * W_average * X[:, 1]
-        # dr = upstream_gradient_reshaped.T * W_average
-
-        # izracunat zi - zj
+        dr = upstream_gradient_reshaped.dot(W_average).reshape(self.num_rules, )
+        grads['r'] = dr
+        f_gradient = np.vstack((dp, dq))
+        grads['f'] = f_gradient
 
         dW = np.zeros(shape=(self.num_rules, N))  # transpniraj na kraju da odgovara klasicnom W
 
@@ -104,18 +126,24 @@ class Anfis:
             s = 0
             for j in range(self.num_rules):
                 if i == j: continue
-
-                s += (f[:, i] - f[:, j]) * W[:, j]
+                # test1 = z[:, i]
+                # test2 = z[:, j]
+                # test3 = W[:, j]
+                # test4 = z[:, i] - z[:, j]
+                # test5 = (z[:, i] - z[:, j]) * W[:, j]
+                # test6 = W[:, j]
+                s += (z[:, i] - z[:, j]) * W[:, j] #<- Z, a ne F kretenu
             dW[i, :] = s / w_sum_squared
 
         dW = dW.reshape(N, self.num_rules)
 
-        da1 = np.dot(upstream_gradient_reshaped, (self.params['b'][0] * dW * mu_a * (1 - mu_a) * mu_b)) #1xm
-        db1 = np.dot(upstream_gradient_reshaped, (dW * (-(x_less_a) * mu_a * (1 - mu_a) * mu_b)))
+        da1 = np.dot(upstream_gradient_reshaped, (self.params['b'][0] * dW * mu_a * (1 - mu_a) * mu_b))  # 1xm
+        db1 = np.dot(upstream_gradient_reshaped, (dW * (-x_less_a * mu_a * (1 - mu_a) * mu_b)))
 
         da2 = np.dot(upstream_gradient_reshaped, (self.params['b'][1] * dW * mu_b * (1 - mu_b) * mu_a))
-        db2 = np.dot(upstream_gradient_reshaped, (dW * (-(y_less_a) * mu_b * (1 - mu_b) * mu_a)))
+        db2 = np.dot(upstream_gradient_reshaped, (dW * (-y_less_a * mu_b * (1 - mu_b) * mu_a)))
 
-
+        grads['a'] = np.vstack((da1, da2))
+        grads['b'] = np.vstack((db1, db2))
 
         return loss, grads
