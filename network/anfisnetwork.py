@@ -67,6 +67,8 @@ class Anfis:
         row_sum[abs(row_sum - 1e-6) < 1e-6] = 1e-6
         W_average = W / row_sum
 
+        r_crt = + self.params['r'].reshape(self.num_rules, -1)
+        print(X.shape, self.params['f'].shape)
         f = X.dot(self.params['f']) + self.params['r']  # NxM
         # tezine puta f pa suma po njima da se dobije rezultat
         z = W_average.dot(f.T)#tu ne NxN
@@ -79,11 +81,20 @@ class Anfis:
 
         loss, upstream_gradient = quadratic_loss(y=y, o_k=output)
 
+        upstream_gradient_reshaped = upstream_gradient.reshape(1, N)
+
+        x_reshaped = X[:, 0].reshape(N, 1)
+        y_reshaped = X[:, 1].reshape(N, 1)
+
         w_sum_squared = np.sum(W, axis=1)
-        dz = upstream_gradient * w_sum_squared
-        dp = upstream_gradient * output * X[:, 0]
-        dq = upstream_gradient * output * X[:, 1]
-        dr = upstream_gradient * output
+        dz = upstream_gradient_reshaped.dot(W_average)
+        dp = upstream_gradient_reshaped.dot(x_reshaped * W_average)#(x_reshaped.dot(upstream_gradient_reshaped)).dot(W_average)
+        dq = upstream_gradient_reshaped.dot(y_reshaped * W_average)
+        dr = upstream_gradient_reshaped.dot(W_average).reshape(self.num_rules,)
+        # dz = upstream_gradient_reshaped.dot(W_average)
+        # dp = upstream_gradient_reshaped.T * W_average * X[:, 0]
+        # dq = upstream_gradient_reshaped.T * W_average * X[:, 1]
+        # dr = upstream_gradient_reshaped.T * W_average
 
         # izracunat zi - zj
 
@@ -99,11 +110,11 @@ class Anfis:
 
         dW = dW.reshape(N, self.num_rules)
 
-        da1 = upstream_gradient * self.params['b'][0] * dW * mu_a * (1 - mu_a) * mu_b
-        db1 = upstream_gradient * dW * (-(x_less_a) * mu_a * (1 - mu_a) * mu_b)
+        da1 = np.dot(upstream_gradient_reshaped, (self.params['b'][0] * dW * mu_a * (1 - mu_a) * mu_b)) #1xm
+        db1 = np.dot(upstream_gradient_reshaped, (dW * (-(x_less_a) * mu_a * (1 - mu_a) * mu_b)))
 
-        da2 = upstream_gradient * self.params['b'][1] * dW * mu_b * (1 - mu_b) * mu_a
-        db2 = upstream_gradient * dW * (-(y_less_a) * mu_b * (1 - mu_b) * mu_a)
+        da2 = np.dot(upstream_gradient_reshaped, (self.params['b'][1] * dW * mu_b * (1 - mu_b) * mu_a))
+        db2 = np.dot(upstream_gradient_reshaped, (dW * (-(y_less_a) * mu_b * (1 - mu_b) * mu_a)))
 
 
 

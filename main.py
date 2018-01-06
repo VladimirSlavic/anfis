@@ -3,8 +3,17 @@ import numpy as np
 from network.anfisnetwork import Anfis
 
 X = np.array([[1, 2],
+              [3, 3],
+              [3, 3],
               [3, 3]])
-y = np.array([4, 8])
+
+
+# print(X[:,0])
+y = np.array([4, 8, 6, 7])
+#
+# xx = np.array([1, 2, 3, 4])
+# yy = np.array([1, 4, 6, 4])
+# print(xx/yy)
 
 #
 # a = np.array([[1, 1],
