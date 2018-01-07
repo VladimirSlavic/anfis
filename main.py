@@ -1,105 +1,53 @@
 import numpy as np
-
+import math
 from network.anfisnetwork import Anfis
 from network.controller import Controller
 
-X = np.array([[1, -3],
-              [1, -2],
-              [1, -1],
-              [1, 0],
-              [1, 1],
-              [1, 2],
-              [1, 3],
-              [1, 4],
-              [2, -3],
-              [2, -2],
-              [2, -1],
-              [2, 0],
-              [2, 1],
-              [2, 2],
-              [2, 3],
-              [2, 4],
-              [3, -3],
-              [3, -2],
-              [3, -1],
-              [3, 0],
-              [3, 1],
-              [3, 2],
-              [3, 3],
-              [3, 4],
-              [4, -3],
-              [4, -2],
-              [4, -1],
-              [4, 0],
-              [4, 1],
-              [4, 2],
-              [4, 3],
-              [4, 4]
-              ])
+_range = [i for i in range(-4, 5, 1)]
+X_train = None
+y_train = None
 
-# print(X[:,0])
-y = np.zeros(shape=(X.shape[0],))
-for i in range(X.shape[0]):
-    y[i] = X[i, 0] ** 2 + X[i, 1] ** 2
+func_ = lambda x, y: ((x - 1) ** 2 + (y + 2) ** 2 - 5 * x * y + 3) * math.cos(x / 5) ** 2
 
-#
-# xx = np.array([1, 2, 3, 4])
-# yy = np.array([1, 4, 6, 4])
-# print(xx/yy)
+for i in _range:
+    for j in _range:
+        if X_train is None:
+            X_train = np.array([[i, j]])
+            y_train = np.array([func_(i, j)])
+        else:
+            X_train = np.vstack((X_train, np.array([i, j])))
+            y_train = np.hstack((y_train, func_(i, j)))
 
-#
-# a = np.array([[1, 1],
-#               [2, 2]])
-# b = np.array([[2, 2],
-#                [3, 1]])
-# f = np.array([[1, 1],
-#               [1, 2]])
-# r = np.array([0, 0])
-#
-# print(a[:, 0].reshape(-1, 1))
+test = [(0.3, 2), (0.5, 0.5), (-1.3, 1.3), (-3.67, 2.15)]
+
+X_test = None
+y_test = None
+
+for pair in test:
+    if X_test is None:
+        X_test = np.array([[pair[0], pair[1]]])
+        y_test = np.array([func_(pair[0], pair[1])])
+    else:
+        X_test = np.vstack((X_test, np.array([pair[0], pair[1]])))
+        y_test = np.hstack((y_test, np.array([func_(pair[0], pair[1])])))
 
 
-# w = np.array([[1, 4]])
-# ff = w.reshape(-1, 1)
-#
-# rez = ff[range(2)] - w
-#
-#
-# print(rez)
-#
-# print(np.sum(rez, axis=1, keepdims=True))
-# self, num_rules=2, input_dims=2, output_classes=1, reg=0.0, weight_dev=1e-2, dtype=np.float64,
-#                  **kwargs):
-model = Anfis(num_rules=2, input_dims=2, output_classes=1)
-data = {'X_train': X,
-        'y_train': y,
+model = Anfis(num_rules=5, input_dims=2, output_classes=1)
+data = {'X_train': X_train,
+        'y_train': y_train,
         'X_val': None,
         'y_val': None}
-# model = NeuralNet(hidden_dims=self.hidden_layer_dimens, input_dims=self.input_dim, num_classes=self.output_dimension,
-#                           loss_type=self.loss, function=self.activation, dtype=np.float128)
-#
-# self.solver = Controller(model, small_data,
-#                          print_every=1000, num_epochs=20000, batch_size=50,
-#                          update_rule='sgd',
-#                          optim_config={
-#                              'learning_rate': learning_rate,
-#                          })
 
 controller = Controller(model, data, print_every=20, num_epochs=20000, batch_size=10, update_rule='sgd',
                         optim_config={
-                            'learning_rate': 0.001
+                            'learning_rate': 0.01
                         })
 
 controller.train()
+# mask = np.random.choice(X_train.shape[0], 6)
+# X_test = X_train[mask]
+# y_test = y_train[mask]
 
-X_test = np.array([
-    [1, -3],
-    [1, -2],
-    [1, -1],
-    [1, 0],
-    [1, 1],
-    [1, 2],
-])
 prediction = controller.predict(X_test)
 print(prediction)
-print(y[:6])
+print(y_test)

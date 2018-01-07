@@ -73,8 +73,8 @@ class Controller:
         num_batches = N // batch_size
         if N % num_samples != 0:
             num_batches += 1
-        losses = []
         sum_loss = 0
+
         for i in range(num_batches):
             start = i * batch_size
             end = (i + 1) * batch_size
@@ -94,8 +94,7 @@ class Controller:
         num_iterations = iterations_per_epoch * self.num_epochs
 
         for t in range(num_iterations):
-            if self.epoch == 5000:
-                print('wuuuuuuut')
+
             self._step()
             new_epoch = (t + 1) % iterations_per_epoch == 0
             if new_epoch:
@@ -106,6 +105,7 @@ class Controller:
             should_print = (t % self.print_every) == 0
 
             if first_iteration or last_iteration or should_print:
+
                 train_loss_average = self.accuracy(self.X_train, self.y_train, num_samples=N)
                 result = 'training loss average is: {}'.format(train_loss_average)
                 if self.X_val is not None:
